@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision AI</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Markdown Renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        :root {
+            /* Dark Theme (Default) */
+            --bg: #050505;
+            --surface: #111111;
+            --surface-Highlight: #1a1a1a;
+            --border: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.3);
+            --font-main: 'Inter', sans-serif;
+            --radius: 12px;
+        }
+
+        .light-theme {
+            --bg: #f5f5f7;
+            --surface: #ffffff;
+            --surface-Highlight: #f0f0f0;
+            --border: #e0e0e0;
+            --text-primary: #1d1d1f;
+            --text-secondary: #86868b;
+            --accent: #0071e3;
+            --accent-glow: rgba(0, 113, 227, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* --- Layout --- */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+            width: 100%;
+            max-width: 1800px;
+            /* Adaptive */
+            margin: 0 auto;
+        }
+
+        @media (min-width: 1024px) {
+            .app-container {
+                display: grid;
+                grid-template-columns: 350px 1fr 320px;
+                /* Controls | Feed | Devices */
+                align-items: start;
+                height: 100vh;
+                overflow: hidden;
+            }
+        }
+
+        /* --- Components --- */
+
+        /* Sidebar / Controls */
+        .controls-panel {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        @media (min-width: 1024px) {
+            .controls-panel {
+                height: 100%;
+                overflow-y: auto;
+            }
+        }
+
+        .logo {
+            font-weight: 700;
+            font-size: 1.2rem;
+            letter-spacing: -0.02em;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1.1rem;
+        }
+
+        .icon-btn:hover {
+            color: var(--text-primary);
+            background: var(--surface-Highlight);
+        }
+
+        /* Camera View */
+        .camera-container {
+            position: relative;
+            background: #000;
+            border-radius: var(--radius);
+            overflow: hidden;
+            aspect-ratio: 9/16;
+            max-height: 400px;
+            display: none;
+            margin-bottom: 15px;
+        }
+
+        .camera-container.active {
+            display: block;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Form Elements */
+        .seg-control {
+            display: flex;
+            background: var(--surface-Highlight);
+            padding: 4px;
+            border-radius: 8px;
+        }
+
+        .seg-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .seg-btn.active {
+            background: var(--bg);
+            color: var(--text-primary);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        select,
+        button,
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface-Highlight);
+            color: var(--text-primary);
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .primary-btn {
+            background: var(--accent);
+            border: none;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 0 15px var(--accent-glow);
+            transition: transform 0.1s;
+        }
+
+        .primary-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* --- Feed Area --- */
+        .feed-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative;
+            min-height: 300px;
+        }
+
+        @media (min-width: 1024px) {
+            .feed-panel {
+                padding: 20px;
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                background: var(--surface);
+                height: 100%;
+                overflow-y: auto;
+            }
+        }
+
+        /* Live State */
+        .live-processing {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 15px;
+            display: none;
+            position: sticky;
+            /* Keep it visible at top */
+            top: 0;
+            z-index: 5;
+            backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+        }
+
+        .preview-img {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            max-height: 250px;
+            object-fit: contain;
+            background: #000;
+        }
+
+        .loading-text {
+            color: var(--accent);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .loader {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--accent);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Result Card */
+        .result-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .markdown-body {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            overflow-wrap: break-word;
+        }
+
+        .markdown-body p {
+            margin-bottom: 1em;
+        }
+
+        .markdown-body code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .markdown-body pre {
+            background: var(--surface-Highlight);
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 1em;
+        }
+
+        /* Follow-up Section */
+        .followup-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border);
+        }
+
+        .followup-thread {
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .chat-bubble {
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            max-width: 90%;
+            line-height: 1.4;
+        }
+
+        .chat-user {
+            background: var(--surface-Highlight);
+            align-self: flex-end;
+            color: var(--text-primary);
+            border-bottom-right-radius: 2px;
+        }
+
+        .chat-ai {
+            background: var(--accent);
+            align-self: flex-start;
+            color: white;
+            border-bottom-left-radius: 2px;
+        }
+
+        .followup-input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .followup-input {
+            flex: 1;
+            font-size: 0.9rem;
+            padding: 10px;
+        }
+
+        .followup-btn {
+            width: auto;
+            padding: 0 20px;
+        }
+
+
+        /* --- Right Column (Devices & History) --- */
+        .right-column-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        @media (min-width: 1024px) {
+            .right-column-container {
+                height: 100%;
+                overflow: hidden;
+            }
+        }
+
+        .devices-panel,
+        .history-section {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        @media (min-width: 1024px) {
+            .devices-panel {
+                flex: 1;
+                max-height: none;
+            }
+
+            .history-section {
+                max-height: 250px;
+                flex-shrink: 0;
+            }
+        }
+
+        .device-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .device-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            background: var(--surface-Highlight);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .device-name {
+            font-weight: 500;
+        }
+
+        .device-status {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .capture-trigger-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+
+        .device-preview {
+            width: 100%;
+            aspect-ratio: 16/9;
+            /* Landscape */
+            background: #000;
+            border-radius: 6px;
+            object-fit: cover;
+            display: none;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            /* Clickable */
+            transition: transform 0.2s;
+        }
+
+        .device-preview:hover {
+            transform: scale(1.02);
+        }
+
+        /* --- History (Bottom) --- */
+        .history-section {
+            padding: 20px;
+            background: var(--surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            max-height: 200px;
+        }
+
+        .history-list {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+
+        .history-item {
+            min-width: 100px;
+            height: 80px;
+            background: var(--surface-Highlight);
+            border-radius: 8px;
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+            border: 1px solid transparent;
+            flex-shrink: 0;
+        }
+
+        .history-item:hover {
+            border-color: var(--accent);
+        }
+
+        .history-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.6;
+        }
+
+        /* --- Modals (Common) --- */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 100;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: var(--surface);
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            transform: scale(0.95);
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .modal-backdrop.open .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            width: auto;
+            padding: 0;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* Specific Modal Styles */
+        .preview-large {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: contain;
+            background: black;
+            border-radius: 8px;
+        }
+
+        .settings-grid {
+            display: grid;
+            gap: 15px;
+        }
+
+        /* Animations */
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+
+        <!-- CONTROLS PANEL -->
+        <div class="controls-panel">
+            <div class="logo">
+                <span>Vision Sync</span>
+                <div class="header-actions">
+                    <button class="icon-btn" id="settingsBtn"><i class="ph ph-gear"></i></button>
+                </div>
+            </div>
+
+            <input type="text" id="deviceNameInput" placeholder="Device Name" style="margin-bottom:10px;">
+
+            <button id="cameraToggle">Start Camera</button>
+            <div class="camera-container" id="cameraContainer">
+                <video id="video" autoplay playsinline muted></video>
+            </div>
+
+            <div style="margin-top:10px;">
+                <label>AI Provider</label>
+                <div class="seg-control">
+                    <button class="seg-btn" data-val="gemini">Gemini</button>
+                    <button class="seg-btn active" data-val="ollama">Ollama</button>
+                </div>
+            </div>
+
+            <div id="ollamaControls" style="margin-top:10px;">
+                <label>Local Model</label>
+                <select id="modelSelect"></select>
+            </div>
+
+            <button class="primary-btn" id="captureBtn" style="display:none; margin-top:20px;">Scan & Solve</button>
+        </div>
+
+        <!-- FEED PANEL -->
+        <div class="feed-panel" id="feedPanel">
+            <!-- Live Processing -->
+            <div class="result-card" id="liveProcessing" style="display:none; text-align:center;">
+                <img id="processingImg" style="height:200px; max-width:100%; border-radius:8px; object-fit:contain;">
+                <div style="margin-top:10px; color:var(--accent);">Analyzing...</div>
+            </div>
+
+            <!-- Initial Placeholder -->
+            <div id="placeholder" style="text-align:center; padding-top:50px; color:var(--text-secondary);">
+                <h2>Ready to Sync</h2>
+                <p style="margin-top:10px;">Scan a question from any device.</p>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="right-column-container">
+
+            <!-- DEVICES -->
+            <div class="devices-panel">
+                <h4 style="margin-bottom:10px; color:var(--text-secondary);">Connected Devices</h4>
+                <div id="deviceList"></div>
+            </div>
+
+            <!-- HISTORY -->
+            <div class="history-section">
+                <h4 style="margin-bottom:10px; color:var(--text-secondary);">History</h4>
+                <div id="historyList" style="display:flex; gap:10px; overflow-x:auto;"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div class="modal-backdrop" id="settingsModal">
+        <div class="modal-content" style="max-width:500px;">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button class="icon-btn" onclick="closeSettings()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body settings-grid">
+                <div>
+                    <label>Theme</label>
+                    <button id="themeToggle" style="width:100%;">Switch to Light Mode</button>
+                </div>
+                <div>
+                    <label>Gemini API Key</label>
+                    <input type="password" id="geminiKeyInput" placeholder="Enter API Key">
+                </div>
+                <div>
+                    <label>Ollama URL</label>
+                    <input type="text" id="ollamaUrlInput" placeholder="http://127.0.0.1:11434">
+                </div>
+                <div>
+                    <label>Default Provider</label>
+                    <select id="defaultProviderSelect">
+                        <option value="ollama">Ollama</option>
+                        <option value="gemini">Gemini</option>
+                    </select>
+                </div>
+                <button class="primary-btn" onclick="saveSettings()">Save Configuration</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PREVIEW MODAL -->
+    <div class="modal-backdrop" id="previewModal">
+        <div class="modal-content" style="max-width:900px; height:auto;">
+            <div class="modal-header">
+                <h3 id="previewTitle">Live Preview</h3>
+                <button class="icon-btn" onclick="closePreview()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body" style="display:flex; flex-direction:column; gap:20px;">
+                <img id="largePreviewImg" class="preview-large" src="">
+                <button class="primary-btn" id="remoteCaptureBtn" style="padding:15px; font-size:1.1rem;">Take
+                    Picture</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        // Config State
+        let config = { DEFAULT_PROVIDER: 'ollama' };
+
+        // Elements
+        const deviceNameInput = document.getElementById('deviceNameInput');
+        const deviceList = document.getElementById('deviceList');
+        const feedPanel = document.getElementById('feedPanel');
+        const historyList = document.getElementById('historyList');
+        const modelSelect = document.getElementById('modelSelect');
+
+        // Init
+        const savedName = localStorage.getItem('vision_device_name') || `Device-${Math.floor(Math.random() * 1000)}`;
+        deviceNameInput.value = savedName;
+        socket.emit('device_register', { name: savedName });
+
+        // Load Config
+        fetch('/api/config').then(res => res.json()).then(data => {
+            config = data;
+            document.getElementById('ollamaUrlInput').value = data.OLLAMA_BASE_URL;
+            document.getElementById('defaultProviderSelect').value = data.DEFAULT_PROVIDER;
+
+            // Set Active Provider
+            document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.seg-btn[data-val="${data.DEFAULT_PROVIDER}"]`)?.classList.add('active');
+
+            if (data.DEFAULT_PROVIDER === 'ollama') fetchOllamaModels();
+        });
+
+        // --- Settings Logic ---
+        const themeToggle = document.getElementById('themeToggle');
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-theme');
+            themeToggle.textContent = 'Switch to Dark Mode';
+        }
+
+        document.getElementById('settingsBtn').onclick = () => document.getElementById('settingsModal').classList.add('open');
+        window.closeSettings = () => document.getElementById('settingsModal').classList.remove('open');
+
+        themeToggle.onclick = () => {
+            document.body.classList.toggle('light-theme');
+            const isLight = document.body.classList.contains('light-theme');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            themeToggle.textContent = isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode';
+        };
+
+        window.saveSettings = async () => {
+            const payload = {
+                GEMINI_API_KEY: document.getElementById('geminiKeyInput').value || undefined,
+                OLLAMA_BASE_URL: document.getElementById('ollamaUrlInput').value,
+                DEFAULT_PROVIDER: document.getElementById('defaultProviderSelect').value
+            };
+
+            const res = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                alert('Settings Saved!');
+                closeSettings();
+                location.reload();
+            }
+        };
+
+        // --- Provider Switching ---
+        document.querySelectorAll('.seg-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const val = btn.dataset.val;
+                document.getElementById('ollamaControls').style.display = val === 'ollama' ? 'block' : 'none';
+                if (val === 'ollama') fetchOllamaModels();
+            });
+        });
+
+        async function fetchOllamaModels() {
+            if (modelSelect.options.length > 0) return;
+            try {
+                const res = await fetch('/api/ollama/models');
+                const data = await res.json();
+                modelSelect.innerHTML = '';
+                data.models?.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.name;
+                    opt.textContent = m.name;
+                    modelSelect.appendChild(opt);
+                });
+            } catch (e) { }
+        }
+
+        // --- Camera & Capture ---
+        let stream = null;
+        let previewInterval = null;
+        const video = document.getElementById('video');
+        const captureBtn = document.getElementById('captureBtn');
+
+        document.getElementById('cameraToggle').onclick = async () => {
+            if (stream) {
+                stopCamera();
+                document.getElementById('cameraToggle').textContent = "Start Camera";
+            } else {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    video.srcObject = stream;
+                    document.getElementById('cameraContainer').classList.add('active');
+                    captureBtn.style.display = 'block';
+                    document.getElementById('cameraToggle').textContent = "Stop Camera";
+                    socket.emit('camera_status', { active: true });
+                    startPreviewBroadcast();
+                } catch (e) { alert("Camera Error: " + e.message); }
+            }
+        };
+
+        function stopCamera() {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            stream = null;
+            document.getElementById('cameraContainer').classList.remove('active');
+            captureBtn.style.display = 'none';
+            socket.emit('camera_status', { active: false });
+            if (previewInterval) clearInterval(previewInterval);
+        }
+
+        function startPreviewBroadcast() {
+            const canvas = document.createElement('canvas'); // Small canvas for preview
+            canvas.width = 300; canvas.height = 168; // Landscape
+            const ctx = canvas.getContext('2d');
+            previewInterval = setInterval(() => {
+                if (!stream || !video.videoWidth) return;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                socket.emit('preview_frame', canvas.toDataURL('image/jpeg', 0.4));
+            }, 500);
+        }
+
+        captureBtn.onclick = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            canvas.toBlob(blob => {
+                const fd = new FormData();
+                fd.append('image', blob, 'capture.jpg');
+
+                // Get active provider from UI
+                const activeProvider = document.querySelector('.seg-btn.active').dataset.val;
+                fd.append('provider', activeProvider);
+                if (activeProvider === 'ollama') fd.append('modelName', modelSelect.value);
+
+                fetch('/analyze', { method: 'POST', body: fd });
+            }, 'image/jpeg', 0.8);
+        };
+
+        // --- Events ---
+        socket.on('device_list', (devices) => {
+            deviceList.innerHTML = '';
+            devices.forEach(d => {
+                const isMe = d.id === socket.id;
+                const el = document.createElement('div');
+                el.className = 'device-item';
+                el.innerHTML = `
+                <div style="display:flex; justify-content:space-between;">
+                    <strong>${d.name} ${isMe ? '(You)' : ''}</strong>
+                    <span>${d.hasCamera ? '📸' : '💤'}</span>
+                </div>
+                <!-- Preview Thumb -->
+                <img id="preview-${d.id}" class="device-preview" style="display:${d.hasCamera ? 'block' : 'none'}" 
+                     onclick="openPreview('${d.id}')">
+            `;
+                deviceList.appendChild(el);
+            });
+        });
+
+        socket.on('device_preview', (data) => {
+            const img = document.getElementById(`preview-${data.id}`);
+            if (img) img.src = data.image;
+
+            // Update Modal if open
+            const largeImg = document.getElementById('largePreviewImg');
+            if (document.getElementById('previewModal').classList.contains('open') &&
+                largeImg.dataset.target === data.id) {
+                largeImg.src = data.image;
+            }
+        });
+
+        // Preview Modal Logic
+        window.openPreview = (targetId) => {
+            if (targetId === socket.id) return; // Don't preview self (pointless loop)
+            const modal = document.getElementById('previewModal');
+            const largeImg = document.getElementById('largePreviewImg');
+            largeImg.dataset.target = targetId;
+            largeImg.src = document.getElementById(`preview-${targetId}`).src;
+
+            document.getElementById('remoteCaptureBtn').onclick = () => {
+                socket.emit('request_remote_capture', targetId);
+            };
+
+            modal.classList.add('open');
+        }
+        window.closePreview = () => document.getElementById('previewModal').classList.remove('open');
+
+        // Trigger Check (Remote Capture Recv)
+        socket.on('trigger_check', () => {
+            if (stream) captureBtn.click();
+        });
+
+        // New Scan
+        socket.on('new_scan', (data) => {
+            document.getElementById('placeholder').style.display = 'none';
+            const proc = document.getElementById('liveProcessing');
+            proc.style.display = 'block';
+            document.getElementById('processingImg').src = data.image;
+            if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // New Answer
+        socket.on('new_answer', (data) => {
+            document.getElementById('liveProcessing').style.display = 'none';
+            renderResultCard(data, true);
+            fetchHistory(); // Update sync
+        });
+
+        // History
+        socket.on('history_update', (hist) => {
+            // Render thumbs
+            historyList.innerHTML = '';
+            hist.forEach(item => {
+                const el = document.createElement('img');
+                el.src = item.image;
+                el.style = "width:100px; height:60px; object-fit:cover; border-radius:6px; cursor:pointer;";
+                // On click, scroll to or render the card if missing? 
+                // For now, let's just use it to see old images. 
+                // Better: Load it into view.
+                el.onclick = () => {
+                    // If existing card, scroll. If not, render.
+                    if (!document.getElementById(`result-${item.id}`)) renderResultCard(item, false);
+                    document.getElementById(`result-${item.id}`).scrollIntoView({ behavior: 'smooth' });
+                };
+                historyList.appendChild(el);
+            });
+        });
+
+        function renderResultCard(data, prepend) {
+            if (document.getElementById(`result-${data.id}`)) return; // Duplicate check
+
+            const div = document.createElement('div');
+            div.className = 'result-card';
+            div.id = `result-${data.id}`;
+            div.innerHTML = `
+            <div class="result-header">
+                <span>${data.provider.toUpperCase()} (${data.model || ''})</span>
+                <span>${data.timestamp}</span>
+            </div>
+            <div class="markdown-body">${marked.parse(data.answer)}</div>
+            
+            <!-- Follow Up Section -->
+            <div class="followup-section">
+                <div id="thread-${data.id}" class="followup-thread"></div>
+                <div class="followup-input-container">
+                    <input type="text" class="followup-input" placeholder="Ask a follow-up..." id="input-${data.id}">
+                    <button class="primary-btn followup-btn" onclick="sendFollowUp('${data.id}')">Send</button>
+                </div>
+            </div>
+        `;
+
+            if (prepend) feedPanel.insertBefore(div, document.getElementById('liveProcessing').nextSibling);
+            else feedPanel.appendChild(div);
+        }
+
+        // --- Follow-up Logic ---
+        window.sendFollowUp = (parentId) => {
+            const input = document.getElementById(`input-${parentId}`);
+            const prompt = input.value.trim();
+            if (!prompt) return;
+
+            // Optimistic UI
+            addChatBubble(parentId, prompt, 'user');
+            input.value = '';
+
+            // Capture context: text of the answer
+            // Robustness: Server should ideally have the history item by ID. 
+            // We'll pass the answer text just in case simpler stateless.
+            // Actually, let's grab the HTML and strip tags or use stored data? 
+            // Simple text extraction from the card's markdown-body.
+            const card = document.getElementById(`result-${parentId}`);
+            const contextText = card.querySelector('.markdown-body').innerText;
+
+            socket.emit('ask_followup', {
+                parentId,
+                prompt,
+                historyContext: contextText
+            });
+        };
+
+        socket.on('followup_result', (data) => {
+            // data: { parentId, prompt (original), answer }
+            // Determine if we need to add User bubble (sync) or just AI bubble
+            // We already added User bubble locally, but other devices need it.
+            // Unique ID check would be good, but for now just appending is "okay-ish" for demo.
+            // Better: Only append AI answer if we sent it? No, sync means everyone sees it.
+
+            // Simple Hack: Check if last user message matches prompt, if so skip user msg.
+            // We'll just render both IF we rely on socket for everything. 
+            // Let's assume we render everything from socket event for robust sync.
+            // So remove "Optimistic UI" above? Or dedupe. 
+            // Let's dedupe by checking if last bubble text == prompt.
+
+            const thread = document.getElementById(`thread-${data.parentId}`);
+            if (thread) {
+                // Check last user message
+                const lastMsg = thread.lastElementChild;
+                const alreadyShowingUser = lastMsg && lastMsg.classList.contains('chat-user') && lastMsg.innerText === data.prompt;
+
+                if (!alreadyShowingUser) addChatBubble(data.parentId, data.prompt, 'user');
+
+                // Add AI Reponse
+                addChatBubble(data.parentId, data.answer, 'ai');
+            }
+        });
+
+        function addChatBubble(parentId, text, type) {
+            const thread = document.getElementById(`thread-${parentId}`);
+            if (!thread) return;
+            const div = document.createElement('div');
+            div.className = `chat-bubble chat-${type}`;
+            div.innerHTML = type === 'ai' ? marked.parse(text) : text;
+            thread.appendChild(div);
+        }
+
+        // Helper to refresh history list
+        function fetchHistory() {
+            // Server emits it on change usually, but we can request it if needed.
+        }
+
+    </script>
+</body>
+
+</html>
