@@ -241,10 +241,110 @@
             border-color: var(--accent);
         }
 
-        select option {
-            background: var(--surface);
+        /* Hide native select when custom dropdown is active */
+        select.hidden-select {
+            display: none;
+        }
+
+        /* Custom Dropdown Component */
+        .custom-dropdown {
+            position: relative;
+            width: 100%;
+        }
+
+        .custom-dropdown-trigger {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface-Highlight);
             color: var(--text-primary);
-            padding: 10px;
+            font-family: inherit;
+            font-size: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .custom-dropdown-trigger span {
+            display: block;
+            padding-right: 24px;
+        }
+
+        .custom-dropdown-trigger i {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            transition: transform 0.2s;
+            font-size: 14px;
+        }
+
+        .custom-dropdown.open .custom-dropdown-trigger i {
+            transform: translateY(-50%) rotate(180deg);
+        }
+
+        .custom-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .custom-dropdown.open .custom-dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .custom-dropdown-option {
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .custom-dropdown-option:hover {
+            background: var(--surface-Highlight);
+        }
+
+        .custom-dropdown-option.selected {
+            background: var(--accent);
+            color: white;
+        }
+
+        .custom-dropdown-option.selected:hover {
+            background: var(--accent);
+            opacity: 0.9;
+        }
+
+        /* Custom scrollbar for dropdown menu */
+        .custom-dropdown-menu::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-dropdown-menu::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
         }
 
         /* Device Name Container */
@@ -638,18 +738,55 @@
 
         .followup-input-container {
             display: flex;
-            gap: 10px;
-            align-items: flex-end;
-            background: #1e1e1e;
-            padding: 10px;
+            gap: 8px;
+            align-items: center;
+            background: #1a1a1a;
+            padding: 8px 12px;
             border-radius: 24px;
             border: 1px solid #333;
+            transition: border-color 0.2s;
+        }
+
+        .followup-input-container:focus-within {
+            border-color: var(--accent);
+        }
+
+        /* Action buttons on left side */
+        .followup-actions {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .followup-action-btn {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+            font-size: 1rem;
+        }
+
+        .followup-action-btn:hover {
+            background: var(--surface-Highlight);
+            color: var(--text-primary);
+        }
+
+        .followup-action-btn.active {
+            color: var(--accent);
         }
 
         .followup-input {
             flex: 1;
             font-size: 0.95rem;
-            padding: 8px 5px;
+            padding: 8px 4px;
             resize: none;
             min-height: 24px;
             max-height: 200px;
@@ -658,6 +795,11 @@
             border: none;
             color: white;
             outline: none;
+            line-height: 1.4;
+        }
+
+        .followup-input::placeholder {
+            color: var(--text-secondary);
         }
 
         /* Custom Scrollbar for Textarea */
@@ -671,19 +813,27 @@
         }
 
         .followup-btn {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
             padding: 0;
-            border-radius: 50%;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #2b2b2b;
-            transition: background 0.2s;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+            font-size: 1.1rem;
         }
 
         .followup-btn:hover {
-            background: var(--accent);
+            color: var(--accent);
+        }
+
+        .followup-btn:active {
+            transform: scale(0.95);
         }
 
         /* --- Right Column (Devices & History) --- */
@@ -981,7 +1131,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            z-index: 200;
+            z-index: 99999;
             opacity: 0;
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
@@ -1029,9 +1179,14 @@
             }
 
             .modal-content {
-                height: 100%;
+                height: auto;
                 max-height: 90vh;
                 width: 95%;
+            }
+
+            /* Settings modal should not have flex: 1 on mobile */
+            #settingsModal .modal-body {
+                flex: none;
             }
 
             .modal-body::-webkit-scrollbar {
@@ -1133,10 +1288,10 @@
             <div class="ai-options">
                 <label>AI Provider & Model</label>
                 <div class="seg-control">
-                    <button class="seg-btn" data-val="gemini">Gemini<span class="status-dot checking"
-                            id="geminiStatus"></span></button>
                     <button class="seg-btn active" data-val="ollama">Ollama<span class="status-dot checking"
                             id="ollamaStatus"></span></button>
+                    <button class="seg-btn" data-val="gemini">Gemini<span class="status-dot checking"
+                            id="geminiStatus"></span></button>
                 </div>
                 <!-- Dynamic Model Select -->
                 <div id="aiModelContainer" style="margin-top:5px;">
@@ -1824,8 +1979,12 @@
                 <div class="followup-section">
                     <div id="thread-${data.id}" class="followup-thread"></div>
                     <div class="followup-input-container">
+                        <div class="followup-actions">
+                            <button class="followup-action-btn active" id="web-${data.id}" onclick="toggleWebSearch('${data.id}')" title="Web Search (On by Default)"><i class="ph ph-globe"></i></button>
+                            <button class="followup-action-btn" onclick="triggerAttachment('${data.id}')" title="Attach Image"><i class="ph ph-paperclip"></i></button>
+                        </div>
                         <textarea class="followup-input" placeholder="Ask a follow-up..." id="input-${data.id}" rows="1" onkeydown="handleChatKey(event, '${data.id}')"></textarea>
-                        <button class="primary-btn followup-btn" onclick="sendFollowUp('${data.id}')"><i class="ph ph-paper-plane-right"></i></button>
+                        <button class="followup-btn" onclick="sendFollowUp('${data.id}')" title="Send"><i class="ph ph-paper-plane-right"></i></button>
                     </div>
                 </div>
             `;
@@ -1850,10 +2009,33 @@
             }
         };
 
+        // Web search state per card (default: ON)
+        const webSearchEnabled = {};
+
+        window.toggleWebSearch = (id) => {
+            const btn = document.getElementById(`web-${id}`);
+            if (webSearchEnabled[id] === undefined) webSearchEnabled[id] = true; // Default on
+            webSearchEnabled[id] = !webSearchEnabled[id];
+            btn.classList.toggle('active', webSearchEnabled[id]);
+            showToast(webSearchEnabled[id] ? "Web Search Enabled" : "Web Search Disabled");
+        };
+
+        window.triggerAttachment = (id) => {
+            showToast("Attachment feature coming soon!");
+        };
+
         window.sendFollowUp = (parentId) => {
-            // Add Thinking Bubble
+            const input = document.getElementById(`input-${parentId}`);
+            const prompt = input.value.trim();
+            if (!prompt) return;
+
             const thread = document.getElementById(`thread-${parentId}`);
 
+            // 1. Add user message FIRST
+            addChatBubble(parentId, prompt, 'user');
+            input.value = '';
+
+            // 2. THEN add thinking indicator (so it appears BELOW user message)
             if (thread && !document.getElementById(`thinking-${parentId}`)) {
                 const thinking = document.createElement('div');
                 thinking.id = `thinking-${parentId}`;
@@ -1863,22 +2045,18 @@
                 thread.scrollTop = thread.scrollHeight;
             }
 
-            const input = document.getElementById(`input-${parentId}`);
-            const prompt = input.value.trim();
-            if (!prompt) return;
-
-            // Optimistic UI
-            addChatBubble(parentId, prompt, 'user');
-            input.value = '';
-
             const card = document.getElementById(`result-${parentId}`);
             const contextText = card.querySelector('.markdown-body').innerText;
+
+            // Check if web search is enabled (default: true)
+            const useWebSearch = webSearchEnabled[parentId] !== false;
 
             socket.emit('ask_followup', {
                 parentId,
                 prompt,
                 historyContext: contextText,
-                model: config.DEFAULT_PROVIDER === 'ollama' ? modelSelect.value : undefined
+                model: config.DEFAULT_PROVIDER === 'ollama' ? modelSelect.value : undefined,
+                webSearch: useWebSearch
             });
         };
 
@@ -1910,8 +2088,114 @@
 
         // Helper to refresh history list
         function fetchHistory() {
-            // Server emits it on change usually, but we can request it if needed.
+            // Request the latest history from server
+            socket.emit('request_history');
         }
+
+        // --- Custom Dropdown Component ---
+        function createCustomDropdown(selectElement) {
+            if (!selectElement || selectElement.classList.contains('custom-dropdown-initialized')) return;
+
+            selectElement.classList.add('hidden-select', 'custom-dropdown-initialized');
+
+            // Create wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'custom-dropdown';
+            wrapper.dataset.for = selectElement.id;
+
+            // Create trigger button
+            const trigger = document.createElement('button');
+            trigger.type = 'button';
+            trigger.className = 'custom-dropdown-trigger';
+
+            const selectedOption = selectElement.options[selectElement.selectedIndex];
+            trigger.innerHTML = `<span>${selectedOption ? selectedOption.text : 'Select...'}</span><i class="ph ph-caret-down"></i>`;
+
+            // Create menu
+            const menu = document.createElement('div');
+            menu.className = 'custom-dropdown-menu';
+
+            function buildOptions() {
+                menu.innerHTML = '';
+                Array.from(selectElement.options).forEach((opt, idx) => {
+                    const optEl = document.createElement('div');
+                    optEl.className = 'custom-dropdown-option';
+                    if (idx === selectElement.selectedIndex) optEl.classList.add('selected');
+                    optEl.textContent = opt.text;
+                    optEl.dataset.value = opt.value;
+                    optEl.dataset.index = idx;
+
+                    optEl.onclick = (e) => {
+                        e.stopPropagation();
+                        selectElement.selectedIndex = idx;
+                        selectElement.dispatchEvent(new Event('change'));
+                        trigger.querySelector('span').textContent = opt.text;
+                        menu.querySelectorAll('.custom-dropdown-option').forEach(o => o.classList.remove('selected'));
+                        optEl.classList.add('selected');
+                        wrapper.classList.remove('open');
+                    };
+
+                    menu.appendChild(optEl);
+                });
+            }
+
+            buildOptions();
+
+            // Toggle dropdown
+            trigger.onclick = (e) => {
+                e.stopPropagation();
+                // Close all other dropdowns
+                document.querySelectorAll('.custom-dropdown.open').forEach(d => {
+                    if (d !== wrapper) d.classList.remove('open');
+                });
+                wrapper.classList.toggle('open');
+            };
+
+            // Close on outside click
+            document.addEventListener('click', (e) => {
+                if (!wrapper.contains(e.target)) {
+                    wrapper.classList.remove('open');
+                }
+            });
+
+            // Insert into DOM
+            selectElement.parentNode.insertBefore(wrapper, selectElement);
+            wrapper.appendChild(trigger);
+            wrapper.appendChild(menu);
+            wrapper.appendChild(selectElement);
+
+            // Expose method to refresh options
+            wrapper.refreshOptions = () => {
+                buildOptions();
+                const selectedOpt = selectElement.options[selectElement.selectedIndex];
+                trigger.querySelector('span').textContent = selectedOpt ? selectedOpt.text : 'Select...';
+            };
+
+            return wrapper;
+        }
+
+        // Initialize custom dropdowns
+        const modelSelectDropdown = createCustomDropdown(document.getElementById('modelSelect'));
+        const providerSelectDropdown = createCustomDropdown(document.getElementById('defaultProviderSelect'));
+
+        // Update model dropdown refresh to also update custom dropdown
+        const originalUpdateModelDropdown = updateModelDropdown;
+        updateModelDropdown = async function (provider) {
+            await originalUpdateModelDropdown(provider);
+            // Refresh custom dropdown
+            if (modelSelectDropdown) {
+                setTimeout(() => modelSelectDropdown.refreshOptions(), 100);
+            }
+        };
+
+        // Refresh on fetchOllamaModels as well
+        const originalFetchOllamaModels = fetchOllamaModels;
+        fetchOllamaModels = async function () {
+            await originalFetchOllamaModels();
+            if (modelSelectDropdown) {
+                setTimeout(() => modelSelectDropdown.refreshOptions(), 100);
+            }
+        };
     </script>
 </body>
 

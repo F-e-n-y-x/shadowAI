@@ -280,6 +280,8 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
         if (history.length > 50) history.pop();
 
         io.emit('new_answer', resultData);
+        // Broadcast updated history to all clients
+        io.emit('history_update', history);
 
         res.json({ success: true });
 
@@ -308,6 +310,11 @@ io.on('connection', (socket) => {
             hasCamera: false
         });
         io.emit('device_list', Array.from(connectedDevices.values()));
+    });
+
+    // Request History (explicit client request)
+    socket.on('request_history', () => {
+        socket.emit('history_update', history);
     });
 
     // Toggle Device Type (Manual Override)
@@ -345,19 +352,29 @@ io.on('connection', (socket) => {
 
     // 5. Follow-up Question
     socket.on('ask_followup', async (data) => {
-        // data: { parentId, prompt, historyContext }
+        // data: { parentId, prompt, historyContext, webSearch }
         try {
             const context = data.historyContext || "No previous context.";
             let reply = "";
 
             const provider = config.DEFAULT_PROVIDER;
 
+            // Build the enhanced prompt
+            let enhancedPrompt = data.prompt;
+
+            if (data.webSearch) {
+                // Web search persona - instructs AI to use grounding/search and synthesize
+                enhancedPrompt = `You have access to real-time web information. Research this question using the internet, then provide a comprehensive, well-synthesized answer in your own words. Do NOT simply copy-paste from sources - analyze, summarize, and explain the information clearly. Cite sources when relevant.
+
+Question: ${data.prompt}`;
+            }
+
             if (provider === 'gemini') {
                 const model = data.model || 'gemini-1.5-flash';
-                reply = await askGemini(data.prompt, model, null, context);
+                reply = await askGemini(enhancedPrompt, model, null, context);
             } else {
                 const model = data.model || 'llama3';
-                reply = await askOllama(data.prompt, model, null, context);
+                reply = await askOllama(enhancedPrompt, model, null, context);
             }
 
             const timestamp = new Date().toLocaleTimeString();
