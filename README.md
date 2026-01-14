@@ -1,4 +1,4 @@
-# Vision Sync
+# Vision Ai
 
 <div align="center">
 
