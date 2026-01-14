@@ -1,4 +1,4 @@
-# Vision Sync
+# Vision AI
 
 <div align="center">
 
@@ -196,3 +196,4 @@ MIT License — feel free to use, modify, and distribute.
 **Made with ❤️ for seamless AI-powered vision workflows**
 
 </div>
+
