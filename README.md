@@ -34,7 +34,7 @@
 Pull and run the latest verified image directly from GitHub Container Registry.
 
 ```bash
-docker run -d -p 3000:3000 --name shadow-ai ghcr.io/f-e-n-y-x/shadowai:latest
+docker run -d -p 3000:3001 --name shadow-ai ghcr.io/f-e-n-y-x/shadowai:latest
 ```
 
 ### Option 2: Docker (Self-Build)
