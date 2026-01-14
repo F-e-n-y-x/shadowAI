@@ -63,14 +63,59 @@ const upload = multer({
 const history = []; // Stores last 50 items
 const connectedDevices = new Map(); // socketId -> { name, hasCamera }
 
+// Helper: Get Daily Path
+const getDailyPath = () => {
+    const now = new Date();
+    const folderName = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const fullPath = path.join(__dirname, 'public', 'history', folderName);
+
+    if (!fs.existsSync(fullPath)) {
+        fs.mkdirSync(fullPath, { recursive: true });
+    }
+
+    return {
+        fullPath,
+        webPath: `/history/${folderName}`
+    };
+};
+
+// Load History from today's JSONL
+const loadHistory = () => {
+    try {
+        const { fullPath } = getDailyPath();
+        const jsonlPath = path.join(fullPath, 'data.jsonl');
+        if (fs.existsSync(jsonlPath)) {
+            const data = fs.readFileSync(jsonlPath, 'utf8');
+            const lines = data.trim().split('\n');
+            lines.forEach(line => {
+                if (line) {
+                    try {
+                        history.unshift(JSON.parse(line));
+                    } catch (err) {
+                        console.warn("Skipping malformed history line:", err.message);
+                    }
+                }
+            });
+            // Keep limit
+            if (history.length > 50) history.length = 50;
+            console.log(`Loaded ${history.length} items from history.`);
+        }
+    } catch (e) {
+        console.error("Failed to load history:", e);
+    }
+};
+// Initial Load
+loadHistory();
+
 // AI Helper Functions
-const askGemini = async (prompt, imageBuffer = null, context = null) => {
+const askGemini = async (prompt, modelName, imageBuffer = null, context = null) => {
     try {
         const apiKey = config.GEMINI_API_KEY;
         if (!apiKey) throw new Error("Gemini API Key is missing in settings.");
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // Use provided model or default
+        const model = genAI.getGenerativeModel({ model: modelName || "gemini-1.5-flash" });
 
         let result;
         if (imageBuffer) {
@@ -89,7 +134,7 @@ const askGemini = async (prompt, imageBuffer = null, context = null) => {
         return result.response.text();
     } catch (error) {
         console.error("Gemini Error:", error);
-        return `Error calling Gemini: ${error.message}`;
+        throw new Error(`Gemini API Error: ${error.message}`);
     }
 };
 
@@ -114,32 +159,17 @@ const askOllama = async (prompt, modelName, imageBuffer = null, context = null) 
 
     } catch (error) {
         console.error("Ollama Error:", error);
-        return `Error calling Ollama: ${error.message}`;
+        throw new Error(`Ollama API Error: ${error.message}`);
     }
 };
 
-
-// Helper: Get Daily Path
-const getDailyPath = () => {
-    const now = new Date();
-    const folderName = now.toISOString().split('T')[0]; // YYYY-MM-DD
-    const fullPath = path.join(__dirname, 'public', 'history', folderName);
-
-    if (!fs.existsSync(fullPath)) {
-        fs.mkdirSync(fullPath, { recursive: true });
-    }
-
-    return {
-        fullPath,
-        webPath: `/history/${folderName}`
-    };
-};
 
 // Helper: Broadcast current device list
 const broadcastDevices = () => {
     const devices = Array.from(connectedDevices.entries()).map(([id, data]) => ({
         id,
         name: data.name,
+        isMobile: data.isMobile,
         hasCamera: data.hasCamera
     }));
     io.emit('device_list', devices);
@@ -173,6 +203,33 @@ app.get('/api/ollama/models', async (req, res) => {
     }
 });
 
+// 2. Test Ollama Connection
+app.get('/api/test/ollama', async (req, res) => {
+    try {
+        const response = await axios.get(`${config.OLLAMA_BASE_URL}/api/tags`, { timeout: 5000 });
+        res.json({ success: true, models: response.data.models?.length || 0 });
+    } catch (err) {
+        res.json({ success: false, error: err.message });
+    }
+});
+
+// 3. Test Gemini API Key
+app.get('/api/test/gemini', async (req, res) => {
+    try {
+        const apiKey = config.GEMINI_API_KEY;
+        if (!apiKey) {
+            return res.json({ success: false, error: 'No API key configured' });
+        }
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // Simple test - just list models or do a minimal call
+        await model.generateContent("Hello");
+        res.json({ success: true });
+    } catch (err) {
+        res.json({ success: false, error: err.message });
+    }
+});
+
 app.post('/analyze', upload.single('image'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).send('No image');
@@ -198,7 +255,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
         let answer = '';
 
         if (provider === 'gemini') {
-            answer = await askGemini(persona, req.file.buffer);
+            answer = await askGemini(persona, modelName, req.file.buffer);
         } else {
             answer = await askOllama(persona, modelName || 'llama3', req.file.buffer);
         }
@@ -228,6 +285,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
 
     } catch (err) {
         console.error(err);
+        io.emit('scan_failed');
         io.emit('error', { message: err.message });
         res.status(500).send(err.message);
     }
@@ -246,9 +304,20 @@ io.on('connection', (socket) => {
         connectedDevices.set(socket.id, {
             id: socket.id,
             name: data.name,
+            isMobile: data.isMobile || false,
             hasCamera: false
         });
         io.emit('device_list', Array.from(connectedDevices.values()));
+    });
+
+    // Toggle Device Type (Manual Override)
+    socket.on('toggle_device_type', () => {
+        const device = connectedDevices.get(socket.id);
+        if (device) {
+            device.isMobile = !device.isMobile;
+            connectedDevices.set(socket.id, device); // Update
+            io.emit('device_list', Array.from(connectedDevices.values()));
+        }
     });
 
     // 2. Camera Status
@@ -284,19 +353,54 @@ io.on('connection', (socket) => {
             const provider = config.DEFAULT_PROVIDER;
 
             if (provider === 'gemini') {
-                reply = await askGemini(data.prompt, null, context);
+                const model = data.model || 'gemini-1.5-flash';
+                reply = await askGemini(data.prompt, model, null, context);
             } else {
                 const model = data.model || 'llama3';
                 reply = await askOllama(data.prompt, model, null, context);
             }
 
-            // Emit back to EVERYONE so the thread updates on all devices
+            const timestamp = new Date().toLocaleTimeString();
+
+            // Emit to clients
             io.emit('followup_result', {
                 parentId: data.parentId,
                 prompt: data.prompt,
                 answer: reply,
-                timestamp: new Date().toLocaleTimeString()
+                timestamp
             });
+
+            // --- Persistence Logic ---
+            const { fullPath } = getDailyPath();
+            const jsonlPath = path.join(fullPath, 'data.jsonl');
+
+            // Find item in memory
+            const item = history.find(h => h.id === data.parentId);
+            if (item) {
+                if (!item.thread) item.thread = [];
+                item.thread.push({ prompt: data.prompt, answer: reply, timestamp });
+            }
+
+            // Rewrite JSONL (Simplest approach for valid JSONL updates)
+            if (fs.existsSync(jsonlPath)) {
+                // Read all, update target, write back
+                const content = fs.readFileSync(jsonlPath, 'utf8');
+                const lines = content.trim().split('\n').filter(l => l);
+
+                const newLines = lines.map(line => {
+                    try {
+                        const obj = JSON.parse(line);
+                        if (obj.id === data.parentId) {
+                            if (!obj.thread) obj.thread = [];
+                            obj.thread.push({ prompt: data.prompt, answer: reply, timestamp });
+                            return JSON.stringify(obj);
+                        }
+                        return line;
+                    } catch (e) { return line; }
+                });
+
+                fs.writeFileSync(jsonlPath, newLines.join('\n') + '\n');
+            }
 
         } catch (err) {
             socket.emit('error', { message: "Follow-up failed: " + err.message });
