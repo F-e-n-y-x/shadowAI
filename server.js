@@ -59,6 +59,47 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
+// Pairing Persistence
+const PAIRS_PATH = path.join(__dirname, 'pairs.json');
+let pairs = {}; // { "deviceId": [ { id: "partnerDeviceId", name: "partnerName" } ] }
+
+const loadPairs = () => {
+    if (fs.existsSync(PAIRS_PATH)) {
+        try {
+            pairs = JSON.parse(fs.readFileSync(PAIRS_PATH, 'utf8'));
+        } catch (e) {
+            console.error("Failed to load pairs.json", e);
+            pairs = {};
+        }
+    }
+};
+loadPairs();
+
+const savePairs = () => {
+    try {
+        fs.writeFileSync(PAIRS_PATH, JSON.stringify(pairs, null, 2));
+    } catch (e) {
+        console.error("Failed to save pairs.json", e);
+    }
+};
+
+const addPair = (idA, nameA, idB, nameB) => {
+    if (!pairs[idA]) pairs[idA] = [];
+    if (!pairs[idB]) pairs[idB] = [];
+
+    // Avoid duplicates
+    if (!pairs[idA].find(p => p.id === idB)) pairs[idA].push({ id: idB, name: nameB });
+    if (!pairs[idB].find(p => p.id === idA)) pairs[idB].push({ id: idA, name: nameA });
+
+    savePairs();
+};
+
+const removePair = (idA, idB) => {
+    if (pairs[idA]) pairs[idA] = pairs[idA].filter(p => p.id !== idB);
+    if (pairs[idB]) pairs[idB] = pairs[idB].filter(p => p.id !== idA);
+    savePairs();
+};
+
 // State
 const history = []; // Stores last 50 items
 const connectedDevices = new Map(); // socketId -> { name, hasCamera }
@@ -170,7 +211,8 @@ const broadcastDevices = () => {
         id,
         name: data.name,
         isMobile: data.isMobile,
-        hasCamera: data.hasCamera
+        hasCamera: data.hasCamera,
+        deviceId: data.deviceId // Include for client-side filtering
     }));
     io.emit('device_list', devices);
 };
@@ -307,9 +349,16 @@ io.on('connection', (socket) => {
             id: socket.id,
             name: data.name,
             isMobile: data.isMobile || false,
-            hasCamera: false
+            hasCamera: false,
+            deviceId: data.deviceId // New Unique ID for Paring
         });
-        io.emit('device_list', Array.from(connectedDevices.values()));
+
+        // Send back their saved pairs
+        if (pairs[data.deviceId]) {
+            socket.emit('paired_devices_sync', pairs[data.deviceId]);
+        }
+
+        broadcastDevices();
     });
 
     // Request History (explicit client request)
@@ -342,12 +391,37 @@ io.on('connection', (socket) => {
         io.to(targetSocketId).emit('trigger_check');
     });
 
-    // 4. Live Preview (Optimized Volatile)
-    socket.on('preview_frame', (frameData) => {
-        socket.broadcast.volatile.emit('device_preview', {
-            id: socket.id,
-            image: frameData
+    // 4. WebRTC Signaling (Replaces old 'preview_frame')
+    socket.on('signal_offer', (data) => {
+        // data: { targetId, sdp }
+        io.to(data.targetId).emit('signal_offer', {
+            originId: socket.id,
+            sdp: data.sdp
         });
+    });
+
+    socket.on('signal_answer', (data) => {
+        // data: { targetId, sdp }
+        io.to(data.targetId).emit('signal_answer', {
+            originId: socket.id,
+            sdp: data.sdp
+        });
+    });
+
+    socket.on('signal_ice', (data) => {
+        // data: { targetId, candidate }
+        io.to(data.targetId).emit('signal_ice', {
+            originId: socket.id,
+            candidate: data.candidate
+        });
+    });
+
+    socket.on('request_stream', (targetId) => {
+        io.to(targetId).emit('request_stream', { requesterId: socket.id });
+    });
+
+    socket.on('stop_stream', (targetId) => {
+        io.to(targetId).emit('stop_stream', { requesterId: socket.id });
     });
 
     // 5. Follow-up Question
@@ -427,6 +501,67 @@ Question: ${data.prompt}`;
     socket.on('disconnect', () => {
         connectedDevices.delete(socket.id);
         io.emit('device_list', Array.from(connectedDevices.values()));
+    });
+
+    // --- Pairing Flow (Discovery & Confirmation) ---
+    // 1. Origin requests pair -> Target
+    socket.on('request_pair', (data) => {
+        // data: { targetId (SocketID), originId (DeviceID), originName }
+        io.to(data.targetId).emit('pair_request_received', {
+            originId: data.originId,
+            originName: data.originName,
+            originSocketId: socket.id
+        });
+    });
+
+    // 2. Target accepts -> Origin
+    socket.on('pair_accepted', (data) => {
+        // data: { partnerId (SocketID), partnerName, targetId (DeviceID), targetName }
+        // partnerId is the SocketID of the original requester
+
+        // Find Device ID of the partner (requester)
+        const partnerSocket = connectedDevices.get(data.partnerId);
+        const partnerDeviceId = partnerSocket ? partnerSocket.deviceId : null;
+
+        if (partnerDeviceId) {
+            // Save to Server Persistence
+            addPair(data.targetId, data.targetName, partnerDeviceId, data.partnerName);
+
+            // Sync BOTH sides immediately if online
+            // 1. Sync Requester (Partner)
+            io.to(data.partnerId).emit('pairing_success', {
+                id: data.targetId,
+                name: data.targetName
+            });
+            // Also send full sync to ensure state
+            io.to(data.partnerId).emit('paired_devices_sync', pairs[partnerDeviceId]);
+
+            // 2. Sync Acceptor (Target/Self)
+            socket.emit('paired_devices_sync', pairs[data.targetId]);
+        }
+    });
+
+    // 3. Unpair Request - GLOBAL SYNC
+    socket.on('request_unpair', (data) => {
+        // data: { originId (MyDeviceID), targetId (TargetDeviceID) }
+
+        removePair(data.originId, data.targetId);
+
+        // Notify Self (Updated List)
+        if (pairs[data.originId]) {
+            socket.emit('paired_devices_sync', pairs[data.originId]);
+        } else {
+            socket.emit('paired_devices_sync', []);
+        }
+
+        // Notify Target (If Online)
+        // We need to find the socket(s) associated with targetId
+        for (const [sId, device] of connectedDevices.entries()) {
+            if (device.deviceId === data.targetId) {
+                io.to(sId).emit('unpair_request_received', { originId: data.originId });
+                io.to(sId).emit('paired_devices_sync', pairs[data.targetId] || []);
+            }
+        }
     });
 });
 

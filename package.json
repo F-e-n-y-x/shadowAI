@@ -1,7 +1,7 @@
 {
-  "name": "vision-sync-system",
+  "name": "shadow-ai",
   "version": "1.0.0",
-  "description": "Real-Time AI Vision Sync System",
+  "description": "ShadowAI - Real-Time AI Vision & Device Sync System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
